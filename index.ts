@@ -5,7 +5,7 @@ import crypto from "crypto"
 import { WarpFactory } from "warp-contracts";
 import Query from "@irys/query";
 import axios from "axios";
-import { State } from "./types";
+import { Playlist, State } from "./types";
 import Arweave from "arweave";
 import cors from "cors"
 const app = express()
@@ -15,11 +15,11 @@ app.get("/", async (req, res) => {
     res.send("Bad Method")
 })
 const areave = Arweave.init({
-    host: "15.206.72.44",
+    host: "65.1.2.24",
     port: 8080,
     protocol: "http"
 })
-const warp = WarpFactory.forTestnet()
+const warp = WarpFactory.forLocal(8080, areave)
 const wallet = (readFileSync("wallet.json", "utf-8"))
 app.post("/upload", async (req, res) => {
     const data: { hash?: string, content_id?: string, key?: JsonWebKey, iv: string } = req.body
@@ -63,6 +63,30 @@ app.get("/get/:content_id/:request_sender", async (req, res) => {
 app.listen(8080, () => {
     console.log("running on port 8080")
 })
+// app.get("/get/p/:content_id/:playlist_id/:request_sender", async (req, res) => {
+//     const content_id = req.params.content_id
+//     const request_sender = req.params.request_sender
+//     const playlist_id = req.params.playlist_id
+//     if (content_id && request_sender) {
+//         const irys = new NodeIrys({ url: "node2", token: "arweave", key: JSON.parse(wallet) })
+//         await irys.ready()
+//     }
+// })
+// type _p = { success: false, data: string } | { success: true, data: Playlist }
+// async function get_p(c_id: string, p_id: string, sender: string, irys: NodeIrys) {
+//     const contract = warp.contract<State>('ho2SbiQPHVB8enCQBU3Nh_qJtsK2iJ5Pi9G7nXoO5j0').connect(JSON.parse(wallet));
+//     const bought = (await contract.readState()).cachedValue.state.bought.filter((e) => e.type === "playlist" && e.user === sender && e.id === p_id)
+//     if (bought.length) {
+//         const playlist = await contract.viewState<{ function: string, id: string }, _p>({ function: "get_playlist", id: p_id })
+//         if (playlist.result.success) {
+//             const _r = playlist.result.data.video_list.find((e) => e === c_id)
+//             if (_r?.length) {
+//                 const result = await contract.viewState<{ function: string, content_id: string }, _input>({ function: "get_encryption_key", content_id: c_id })
+
+//             }
+//         }
+//     }
+// }
 async function generateSHA256Hash(data: string) {
     const encoder = new TextEncoder();
     const buffer = encoder.encode(data);
@@ -78,7 +102,7 @@ async function upload(key: JsonWebKey, content_id: string, iv: string) {
     if (encrypted.encrypted.length && encrypted.iv.length) {
         const _upload = await irys.upload(encrypted.encrypted, { tags: [{ name: "Content-Id", value: content_id }] })
         if (_upload.id) {
-            const contract = warp.contract('xH1EwPiTTqCMOXReK2r4BApDas1EpJf50XY9BRlAPMQ').connect(JSON.parse(wallet))
+            const contract = warp.contract('ho2SbiQPHVB8enCQBU3Nh_qJtsK2iJ5Pi9G7nXoO5j0').connect(JSON.parse(wallet))
             const result = await contract.writeInteraction({ function: "write_encryption_key", id: _upload.id, content_id: content_id, iv1: encrypted.iv, iv2: iv })
             if (result?.bundlrResponse?.id) {
                 return true
@@ -99,7 +123,7 @@ type _state = {
 }
 
 async function get(content_id: string, irys: NodeIrys, request_sender: string): Promise<false | { key: JsonWebKey, iv: string }> {
-    const contract = warp.contract<State>('xH1EwPiTTqCMOXReK2r4BApDas1EpJf50XY9BRlAPMQ').connect(JSON.parse(wallet));
+    const contract = warp.contract<State>('ho2SbiQPHVB8enCQBU3Nh_qJtsK2iJ5Pi9G7nXoO5j0').connect(JSON.parse(wallet));
     const result = await contract.viewState<{ function: string, content_id: string }, _input>({ function: "get_encryption_key", content_id: content_id })
     const state = (await contract.readState()).cachedValue.state.bought.filter((e) => e.user === request_sender)
     if (result.result.success) {
@@ -109,7 +133,7 @@ async function get(content_id: string, irys: NodeIrys, request_sender: string): 
             if (_query[0].id) {
                 const _data = await axios.get(`https://gateway.irys.xyz/${_query[0].id}`, { maxRedirects: 4 })
                 if (_data.data.length) {
-                    const uncrypted_data: JsonWebKey = JSON.parse(decrypt(_data.data, result.result.data.id))
+                    const uncrypted_data: JsonWebKey = JSON.parse(decrypt(_data.data, result.result.data.iv1))
                     if (uncrypted_data.alg?.length) {
                         return { key: uncrypted_data, iv: result.result.data.iv2 }
                     } else {

@@ -17,7 +17,7 @@ interface Video extends _base {
     access_model: "open" | "exclusive" | null
 }
 
-interface Playlist extends _base {
+export interface Playlist extends _base {
     teaser: string;
     video_list: Array<string>;
     access_model: "open" | "exclusive"
@@ -34,7 +34,7 @@ export interface State {
     playlist: Array<Playlist>
     user: Array<User>
     bought: Array<{ type: "video" | "playlist", id: string, user: string }>
-    encrypted_db: Array<{ id: string, content_id: string, writer: string, iv: string }>
+    encrypted_db: Array<{ id: string, content_id: string, writer: string, iv1: string, iv2: string }>
 }
 type call = "upload_video" | "create_playlist" | "view" | "get_playlist" | "get_video" | "buy" | "write_encryption_key" | "get_encryption_key" | "upload_teaser" | "upload_thumbnail" | "get_user"
 export interface Action {
